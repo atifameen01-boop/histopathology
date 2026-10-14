@@ -1,0 +1,1390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HistoFig - Histopathology Figure Studio</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Chart.js for Histology Quantification Panels -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Merriweather:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .font-serif-paper { font-family: 'Merriweather', serif; }
+        .canvas-grid {
+            background-size: 20px 20px;
+            background-image: radial-gradient(circle, #cbd5e1 1px, transparent 1px);
+        }
+        /* Custom scrollbars */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col h-screen overflow-hidden">
+
+    <header class="bg-slate-800 border-b border-slate-700 px-4 py-2.5 flex items-center justify-between z-20 shrink-0">
+        <div class="flex items-center space-x-3">
+            <div class="p-2 bg-indigo-600 rounded-lg text-white shadow-lg shadow-indigo-500/30">
+                <i data-lucide="microscope" class="w-5 h-5"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-base tracking-tight flex items-center gap-2">
+                    HistoFig Studio
+                    <span class="text-xs font-medium px-2 py-0.5 bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 rounded-full">Publishing Edition</span>
+                </h1>
+                <p class="text-xs text-slate-400">Animal & Human Model Histopathology Figure Generator</p>
+            </div>
+        </div>
+
+        <!-- Presets and Controls -->
+        <div class="flex items-center space-x-3">
+            <label class="text-xs text-slate-300 flex items-center gap-1.5 bg-slate-700/50 px-3 py-1.5 rounded-lg border border-slate-600">
+                <i data-lucide="book-open" class="w-3.5 h-3.5 text-indigo-400"></i>
+                Target Journal:
+                <select id="journalPreset" class="bg-transparent text-slate-100 font-medium focus:outline-none text-xs border-none cursor-pointer">
+                    <option value="nature" class="bg-slate-800">Nature / Cell (A/B/C lettered, Arial 9pt)</option>
+                    <option value="pathology" class="bg-slate-800">J Path / Am J Pathol (Serif Headers)</option>
+                    <option value="plos" class="bg-slate-800">PLOS ONE / Sci Reports (Standard 300DPI)</option>
+                </select>
+            </label>
+
+            <button onclick="openAiGeneratorModal()" class="flex items-center gap-1.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs px-3.5 py-1.5 rounded-lg font-medium shadow-md shadow-indigo-500/20 transition-all">
+                <i data-lucide="sparkles" class="w-4 h-4"></i>
+                AI Micrograph Generator
+            </button>
+
+            <button onclick="exportPublicationFigure()" class="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs px-3.5 py-1.5 rounded-lg font-medium shadow-md shadow-emerald-500/20 transition-all">
+                <i data-lucide="download" class="w-4 h-4"></i>
+                Export Figure (300 DPI)
+            </button>
+        </div>
+    </header>
+
+    <div class="flex flex-1 overflow-hidden">
+
+        <!-- LEFT SIDEBAR: Tools & Sample Library -->
+        <aside class="w-80 bg-slate-800/90 border-r border-slate-700 flex flex-col shrink-0 z-10 overflow-y-auto">
+
+            <!-- Tabs Header -->
+            <div class="flex border-b border-slate-700 bg-slate-800 sticky top-0 z-10">
+                <button onclick="switchTab('presets')" id="tab-presets" class="flex-1 py-2.5 text-xs font-semibold text-indigo-400 border-b-2 border-indigo-500 flex items-center justify-center gap-1">
+                    <i data-lucide="layout-grid" class="w-3.5 h-3.5"></i> Presets
+                </button>
+                <button onclick="switchTab('samples')" id="tab-samples" class="flex-1 py-2.5 text-xs font-semibold text-slate-400 border-b-2 border-transparent flex items-center justify-center gap-1">
+                    <i data-lucide="file-image" class="w-3.5 h-3.5"></i> Library
+                </button>
+                <button onclick="switchTab('quant')" id="tab-quant" class="flex-1 py-2.5 text-xs font-semibold text-slate-400 border-b-2 border-transparent flex items-center justify-center gap-1">
+                    <i data-lucide="bar-chart-3" class="w-3.5 h-3.5"></i> Quant Graph
+                </button>
+            </div>
+
+            <!-- TAB 1: PRESETS -->
+            <div id="panel-presets" class="p-4 space-y-4">
+                <div>
+                    <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Figure Layouts</h3>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button onclick="setLayout('2x2')" class="p-2.5 bg-slate-700/50 hover:bg-slate-700 border border-slate-600 rounded-lg text-left transition text-xs">
+                            <div class="font-medium text-slate-200">2 × 2 Grid</div>
+                            <div class="text-[10px] text-slate-400 mt-0.5">Control vs 3 Treatments</div>
+                        </button>
+                        <button onclick="setLayout('3x2')" class="p-2.5 bg-slate-700/50 hover:bg-slate-700 border border-slate-600 rounded-lg text-left transition text-xs">
+                            <div class="font-medium text-slate-200">3 × 2 Matrix</div>
+                            <div class="text-[10px] text-slate-400 mt-0.5">2 Models × 3 Stains</div>
+                        </button>
+                        <button onclick="setLayout('inset')" class="p-2.5 bg-slate-700/50 hover:bg-slate-700 border border-slate-600 rounded-lg text-left transition text-xs">
+                            <div class="font-medium text-slate-200">Low/High Mag</div>
+                            <div class="text-[10px] text-slate-400 mt-0.5">Overview + Inset ROI</div>
+                        </button>
+                        <button onclick="setLayout('with-quant')" class="p-2.5 bg-slate-700/50 hover:bg-slate-700 border border-slate-600 rounded-lg text-left transition text-xs">
+                            <div class="font-medium text-slate-200">Tissue + Graph</div>
+                            <div class="text-[10px] text-slate-400 mt-0.5">4 Micrographs + Quant Panel</div>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Pre-configured Research Scenarios -->
+                <div>
+                    <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Teaching & Research Scenarios</h3>
+                    <div class="space-y-2">
+                        <button onclick="loadScenario('liver_fibrosis')" class="w-full text-left p-2.5 bg-indigo-950/40 border border-indigo-500/30 rounded-lg hover:bg-indigo-900/40 transition">
+                            <div class="text-xs font-semibold text-indigo-300">Mouse Liver: Steatohepatitis & Fibrosis</div>
+                            <div class="text-[11px] text-slate-400 mt-1">H&E, Masson's Trichrome, Sirius Red & Oil Red O.</div>
+                        </button>
+                        <button onclick="loadScenario('kidney_ischemia')" class="w-full text-left p-2.5 bg-slate-700/40 border border-slate-600 rounded-lg hover:bg-slate-700/70 transition">
+                            <div class="text-xs font-semibold text-slate-200">Rat Renal Glomerulus & Tubular Pathology</div>
+                            <div class="text-[11px] text-slate-400 mt-1">PAS Stain vs Kim-1 IHC vs Silver Stain.</div>
+                        </button>
+                        <button onclick="loadScenario('colon_pathology')" class="w-full text-left p-2.5 bg-slate-700/40 border border-slate-600 rounded-lg hover:bg-slate-700/70 transition">
+                            <div class="text-xs font-semibold text-slate-200">Intestinal Mucosa & Goblet Cell Depletion</div>
+                            <div class="text-[11px] text-slate-400 mt-1">H&E vs Alcian Blue Mucin Special Stain.</div>
+                        </button>
+                        <button onclick="loadScenario('tumor_apoptosis')" class="w-full text-left p-2.5 bg-slate-700/40 border border-slate-600 rounded-lg hover:bg-slate-700/70 transition">
+                            <div class="text-xs font-semibold text-slate-200">Tumor Microenvironment & Proliferation</div>
+                            <div class="text-[11px] text-slate-400 mt-1">Ki67 IHC DAB + TUNEL Apoptosis Assay.</div>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Global Overlay Annotations -->
+                <div>
+                    <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Active Micrograph Overlays</h3>
+                    <div class="space-y-2 text-xs">
+                        <label class="flex items-center justify-between p-2 bg-slate-700/30 rounded-lg border border-slate-700">
+                            <span class="text-slate-300">Show Scale Bars (µm)</span>
+                            <input type="checkbox" id="toggleScaleBars" checked onchange="renderCanvas()" class="rounded bg-slate-900 border-slate-600 text-indigo-600 focus:ring-0 cursor-pointer">
+                        </label>
+                        <label class="flex items-center justify-between p-2 bg-slate-700/30 rounded-lg border border-slate-700">
+                            <span class="text-slate-300">Panel Lettering (A, B, C...)</span>
+                            <input type="checkbox" id="togglePanelLetters" checked onchange="renderCanvas()" class="rounded bg-slate-900 border-slate-600 text-indigo-600 focus:ring-0 cursor-pointer">
+                        </label>
+                        <label class="flex items-center justify-between p-2 bg-slate-700/30 rounded-lg border border-slate-700">
+                            <span class="text-slate-300">Treatment Group Labels</span>
+                            <input type="checkbox" id="toggleTreatmentLabels" checked onchange="renderCanvas()" class="rounded bg-slate-900 border-slate-600 text-indigo-600 focus:ring-0 cursor-pointer">
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 2: LIBRARY / UPLOAD -->
+            <div id="panel-samples" class="p-4 space-y-4 hidden">
+                <div>
+                    <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Upload Custom Micrograph</h3>
+                    <label class="border-2 border-dashed border-slate-600 hover:border-indigo-500 rounded-lg p-4 flex flex-col items-center justify-center cursor-pointer transition bg-slate-900/30 group">
+                        <i data-lucide="upload-cloud" class="w-7 h-7 text-slate-400 group-hover:text-indigo-400 mb-2"></i>
+                        <span class="text-xs font-medium text-slate-300">Click to upload TIFF / PNG / JPG</span>
+                        <span class="text-[10px] text-slate-500 mt-1">Supports high-res microscopy exports</span>
+                        <input type="file" id="imageUploader" accept="image/*" class="hidden" onchange="handleImageUpload(event)">
+                    </label>
+                </div>
+
+                <div>
+                    <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Synthetic Histopathology Bank</h3>
+                    <p class="text-[11px] text-slate-400 mb-2">Click any slide to assign it to the currently selected figure panel.</p>
+                    <div class="grid grid-cols-2 gap-2" id="presetTissueGrid">
+                        <!-- Populated dynamically with canvas generated tissue samples -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 3: QUANTITATIVE GRAPH BUILDER -->
+            <div id="panel-quant" class="p-4 space-y-4 hidden">
+                <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Histological Scoring Graph</h3>
+                <div class="space-y-3 text-xs">
+                    <div>
+                        <label class="block text-slate-400 mb-1">Graph Metric Title</label>
+                        <input type="text" id="quantTitleInput" value="Fibrotic Area (% Total Section)" onchange="updateQuantGraph()" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-slate-200">
+                    </div>
+                    <div>
+                        <label class="block text-slate-400 mb-1">Y-Axis Label</label>
+                        <input type="text" id="quantYAxisInput" value="Relative Area Density (%)" onchange="updateQuantGraph()" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-slate-200">
+                    </div>
+
+                    <div class="border-t border-slate-700 pt-3">
+                        <label class="block text-slate-400 mb-2">Group Means & SEM</label>
+                        <div class="space-y-2" id="quantDataRows">
+                            <!-- Group input rows -->
+                        </div>
+                    </div>
+
+                    <button onclick="addQuantGroup()" class="w-full py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs rounded font-medium flex items-center justify-center gap-1">
+                        <i data-lucide="plus" class="w-3.5 h-3.5"></i> Add Group
+                    </button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- CENTER WORKSPACE: Figure Canvas Editor -->
+        <main class="flex-1 flex flex-col bg-slate-950 overflow-hidden relative">
+
+            <!-- Toolbar above canvas -->
+            <div class="bg-slate-900/80 border-b border-slate-800 px-4 py-2 flex items-center justify-between text-xs">
+                <div class="flex items-center space-x-4">
+                    <span class="text-slate-400 font-medium">Selected Panel: <span id="activePanelLabel" class="text-indigo-400 font-bold">Panel A</span></span>
+                    <span class="h-4 w-px bg-slate-700"></span>
+                    <span class="text-slate-400">Layout: <span id="activeLayoutName" class="text-slate-200 font-medium">2×2 Grid</span></span>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <button onclick="zoomCanvas(0.1)" class="p-1.5 bg-slate-800 hover:bg-slate-700 rounded text-slate-300" title="Zoom In"><i data-lucide="zoom-in" class="w-4 h-4"></i></button>
+                    <button onclick="zoomCanvas(-0.1)" class="p-1.5 bg-slate-800 hover:bg-slate-700 rounded text-slate-300" title="Zoom Out"><i data-lucide="zoom-out" class="w-4 h-4"></i></button>
+                    <button onclick="resetZoom()" class="p-1.5 bg-slate-800 hover:bg-slate-700 rounded text-slate-300" title="Fit to Screen"><i data-lucide="maximize-2" class="w-4 h-4"></i></button>
+                </div>
+            </div>
+
+            <!-- Main Interactive Canvas Viewport -->
+            <div class="flex-1 overflow-auto p-8 flex items-center justify-center canvas-grid" id="canvasViewport">
+                <div id="figureContainer" class="bg-white text-slate-900 shadow-2xl transition-all relative rounded-sm p-6 max-w-5xl w-full border border-slate-300">
+                    <!-- Figure Grid Outer Wrapper -->
+                    <div id="gridWrapper" class="grid grid-cols-2 gap-4">
+                        <!-- Panels dynamically generated -->
+                    </div>
+
+                    <!-- Figure Caption Block (Standard Academic Format) -->
+                    <div class="mt-6 border-t border-slate-200 pt-4 text-left">
+                        <h4 class="text-xs font-bold text-slate-900 uppercase tracking-wide flex items-center justify-between">
+                            <span>Generated Figure Caption & Legend</span>
+                            <button onclick="copyFigureLegend()" class="text-indigo-600 hover:text-indigo-800 lowercase font-normal flex items-center gap-1">
+                                <i data-lucide="copy" class="w-3 h-3"></i> Copy legend text
+                            </button>
+                        </h4>
+                        <p id="figureLegendText" class="text-xs text-slate-700 mt-1 font-serif-paper leading-relaxed">
+                            <strong>Figure 1. Histopathological evaluation of tissue morphology and marker expression across experimental treatments.</strong> (A-D) Representative photomicrographs showing cellular features and structural integrity. Scale bars = 50 µm. Quantitative data represent mean ± SEM (n=6/group, *p &lt; 0.05, **p &lt; 0.01 vs. Control).
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- RIGHT SIDEBAR: Selected Panel Fine-Tuning Inspector -->
+        <aside class="w-80 bg-slate-800/90 border-l border-slate-700 p-4 flex flex-col shrink-0 z-10 overflow-y-auto space-y-5">
+            <div>
+                <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                    <i data-lucide="sliders" class="w-4 h-4 text-indigo-400"></i> Micrograph Diagnostic Inspector
+                </h3>
+                
+                <div class="space-y-3 text-xs">
+                    <div>
+                        <label class="block text-slate-400 mb-1 font-medium">Panel Title / Sample Name</label>
+                        <input type="text" id="panelTitleInput" oninput="updateActivePanelData()" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-slate-200 focus:border-indigo-500 focus:outline-none">
+                    </div>
+
+                    <div>
+                        <label class="block text-slate-400 mb-1 font-medium">Name of Tissue / Organ</label>
+                        <select id="panelTissueSelect" onchange="onTissueOrStainChange()" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-slate-200 font-medium">
+                            <option value="Liver">Liver (Hepatic Lobules & Sinusoids)</option>
+                            <option value="Kidney">Kidney (Glomeruli & Renal Tubules)</option>
+                            <option value="Lung">Lung (Alveoli & Pulmonary Septa)</option>
+                            <option value="Intestine">Intestine / Colon (Crypts & Villi)</option>
+                            <option value="Heart">Heart (Myocardium & Intercalated Discs)</option>
+                            <option value="Brain">Brain (Cortex Neuropil & Neurons)</option>
+                            <option value="Skin">Skin (Epidermis & Dermis Collagen)</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-slate-400 mb-1 font-medium">Model / Species / Sublabel</label>
+                        <input type="text" id="panelSublabelInput" placeholder="e.g. C57BL/6 Mouse - Cortex" oninput="updateActivePanelData()" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-slate-200 focus:border-indigo-500 focus:outline-none">
+                    </div>
+
+                    <div>
+                        <label class="block text-slate-400 mb-1 font-medium">Primary & Special Stain Dropdown</label>
+                        <select id="panelStainSelect" onchange="onTissueOrStainChange()" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-indigo-300 font-semibold bg-slate-900">
+                            <optgroup label="Standard Routine Stains">
+                                <option value="H&E">Hematoxylin & Eosin (H&E)</option>
+                            </optgroup>
+                            <optgroup label="Connective Tissue & Fibrosis Stains">
+                                <option value="Masson's Trichrome">Masson's Trichrome (Blue Collagen)</option>
+                                <option value="Sirius Red">Sirius Red (Crimson Fibers)</option>
+                                <option value="Verhoeff-Van Gieson">Verhoeff (Elastic & Collagen)</option>
+                            </optgroup>
+                            <optgroup label="Carbohydrate & Mucin Special Stains">
+                                <option value="PAS">PAS (Periodic Acid–Schiff)</option>
+                                <option value="Alcian Blue">Alcian Blue (Acid Mucins)</option>
+                            </optgroup>
+                            <optgroup label="Immunohistochemistry & Lipids">
+                                <option value="IHC (DAB)">IHC DAB (Brown Positive Marker)</option>
+                                <option value="Oil Red O">Oil Red O (Lipid / Fat Droplets)</option>
+                                <option value="Silver Stain">Silver Stain (Reticular Network)</option>
+                                <option value="Toluidine Blue">Toluidine Blue (Mast Cells / Cartilage)</option>
+                                <option value="TUNEL">TUNEL Fluorescence (Apoptosis)</option>
+                            </optgroup>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-slate-400 mb-1 font-medium">Treatment & Pathological Condition</label>
+                        <select id="panelConditionSelect" onchange="onTissueOrStainChange()" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-slate-200">
+                            <option value="Normal Healthy Control">Normal Healthy Architecture</option>
+                            <option value="Mild Inflammatory Infiltrate">Mild Inflammatory Infiltrate</option>
+                            <option value="Severe Fibrosis & Collagen Deposition">Severe Fibrosis & Collagen Accumulation</option>
+                            <option value="Steatosis & Lipid Vacuolation">Steatosis & Lipid Accumulation</option>
+                            <option value="Ischemic Necrosis & Pyknosis">Ischemic Necrosis & Apoptosis</option>
+                            <option value="High Proliferative Marker Expression">High Proliferative Expression</option>
+                        </select>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-slate-400 mb-1 font-medium">Magnification</label>
+                            <select id="panelMagSelect" onchange="updateActivePanelData()" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-slate-200">
+                                <option value="10x">10x (Low Power)</option>
+                                <option value="20x">20x (Medium Power)</option>
+                                <option value="40x">40x (High Power)</option>
+                                <option value="100x">100x (Oil Immersion)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-slate-400 mb-1 font-medium">Regenerate Slide</label>
+                            <button onclick="rebuildTissueSlideForActivePanel()" class="w-full py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded font-medium flex items-center justify-center gap-1 transition">
+                                <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Render Tissue
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scale Bar Settings -->
+            <div class="border-t border-slate-700 pt-4">
+                <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                    <i data-lucide="ruler" class="w-4 h-4 text-indigo-400"></i> Scale Bar Calibration
+                </h3>
+                <div class="space-y-3 text-xs">
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-slate-400 mb-1">Length (µm)</label>
+                            <input type="number" id="scaleBarMicrons" value="50" oninput="updateActivePanelData()" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-slate-200">
+                        </div>
+                        <div>
+                            <label class="block text-slate-400 mb-1">Position</label>
+                            <select id="scaleBarPos" onchange="updateActivePanelData()" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-slate-200">
+                                <option value="bottom-right">Bottom Right</option>
+                                <option value="bottom-left">Bottom Left</option>
+                                <option value="top-right">Top Right</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-3">
+                        <label class="text-slate-400">Bar Color:</label>
+                        <input type="color" id="scaleBarColor" value="#ffffff" onchange="updateActivePanelData()" class="bg-transparent h-6 w-8 cursor-pointer rounded">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stain & Image Adjustments -->
+            <div class="border-t border-slate-700 pt-4">
+                <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                    <i data-lucide="palette" class="w-4 h-4 text-indigo-400"></i> Micrograph Stain Balance
+                </h3>
+                <div class="space-y-3 text-xs">
+                    <div>
+                        <div class="flex justify-between text-slate-400 mb-1">
+                            <span>Contrast (Eosin / Counterstain)</span>
+                            <span id="contrastVal">100%</span>
+                        </div>
+                        <input type="range" id="contrastRange" min="50" max="180" value="100" oninput="updateActivePanelData()" class="w-full accent-indigo-500">
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-slate-400 mb-1">
+                            <span>Saturation (DAB / Fiber Intensity)</span>
+                            <span id="saturateVal">100%</span>
+                        </div>
+                        <input type="range" id="saturateRange" min="50" max="220" value="100" oninput="updateActivePanelData()" class="w-full accent-indigo-500">
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-slate-400 mb-1">
+                            <span>Hematoxylin Blue Tone Shift</span>
+                            <span id="hueVal">0°</span>
+                        </div>
+                        <input type="range" id="hueRange" min="-30" max="30" value="0" oninput="updateActivePanelData()" class="w-full accent-indigo-500">
+                    </div>
+                </div>
+            </div>
+
+            <div class="border-t border-slate-700 pt-4">
+                <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                    <i data-lucide="tag" class="w-4 h-4 text-indigo-400"></i> Teaching Callouts & Pointers
+                </h3>
+                <div class="space-y-2 text-xs">
+                    <div>
+                        <label class="block text-slate-400 mb-1">Callout Label Text</label>
+                        <input type="text" id="annotationTextInput" placeholder="e.g. Glomerulus / Central Vein" value="Glomerulus" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-slate-200">
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button onclick="addAnnotationToActive('labeled-arrow')" class="p-2 bg-indigo-900/50 hover:bg-indigo-800/60 rounded border border-indigo-500/40 flex items-center justify-center gap-1 text-indigo-200">
+                            <i data-lucide="arrow-up-right" class="w-3.5 h-3.5 text-yellow-300"></i> Label Pointer
+                        </button>
+                        <button onclick="addAnnotationToActive('asterisk')" class="p-2 bg-slate-700/60 hover:bg-slate-700 rounded border border-slate-600 flex items-center justify-center gap-1 text-slate-200">
+                            <i data-lucide="asterisk" class="w-3.5 h-3.5 text-red-400"></i> Lesion Star
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <!-- Export Modal Dialog -->
+    <div id="exportModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center hidden">
+        <div class="bg-slate-800 border border-slate-700 rounded-xl w-full max-w-md p-6 shadow-2xl relative">
+            <button onclick="closeExportModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+            <div class="flex items-center gap-3 mb-3">
+                <div class="p-2.5 bg-emerald-500/20 text-emerald-400 rounded-lg">
+                    <i data-lucide="file-check" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <h3 class="font-bold text-slate-100 text-sm">Exporting Publication & Teaching Figure</h3>
+                    <p class="text-xs text-slate-400">Ready for journal submission or classroom slides</p>
+                </div>
+            </div>
+            <p class="text-xs text-slate-300 leading-relaxed mb-4">
+                Your high-resolution figure layout is ready. To export for publication (300 DPI vector scale):
+                <br><br>
+                1. Click <strong>Print / PDF Save</strong> to download as a clean vector PDF.
+                <br>
+                2. Or copy individual figure panels directly into your teaching presentation.
+            </p>
+            <div class="flex items-center gap-2">
+                <button onclick="window.print()" class="flex-1 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs rounded-lg transition flex items-center justify-center gap-1.5">
+                    <i data-lucide="printer" class="w-4 h-4"></i> Save / Print PDF
+                </button>
+                <button onclick="closeExportModal()" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs rounded-lg font-medium">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- AI Micrograph Generator Modal -->
+    <div id="aiModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center hidden">
+        <div class="bg-slate-800 border border-slate-700 rounded-xl w-full max-w-lg p-6 shadow-2xl relative text-slate-100">
+            <button onclick="closeAiModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+            <div class="flex items-center gap-3 mb-4">
+                <div class="p-2.5 bg-indigo-500/20 text-indigo-400 rounded-lg">
+                    <i data-lucide="sparkles" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <h3 class="font-bold text-slate-100 text-sm">AI Histology Micrograph Generator</h3>
+                    <p class="text-xs text-slate-400">Describe the tissue slide or select presets to generate synthetic microscopy</p>
+                </div>
+            </div>
+
+            <div class="space-y-3 text-xs mb-5">
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-slate-400 mb-1">Model / Species</label>
+                        <select id="aiModelSpecies" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-slate-200">
+                            <option value="C57BL/6 Mouse">C57BL/6 Mouse</option>
+                            <option value="Sprague Dawley Rat">Sprague Dawley Rat</option>
+                            <option value="Human Patient Biopsy">Human Patient Biopsy</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-slate-400 mb-1">Organ / Tissue</label>
+                        <select id="aiOrganType" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-slate-200">
+                            <option value="Liver">Liver (Hepatic Lobule)</option>
+                            <option value="Kidney">Kidney (Glomerulus & Tubules)</option>
+                            <option value="Lung">Lung (Alveolar Septa)</option>
+                            <option value="Intestine">Intestine (Crypts & Villi)</option>
+                            <option value="Heart">Heart (Myocardium)</option>
+                            <option value="Brain">Brain (Cortex Neuropil)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-slate-400 mb-1">Stain Type</label>
+                        <select id="aiStainType" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-slate-200">
+                            <option value="H&E">Hematoxylin & Eosin (H&E)</option>
+                            <option value="Masson's Trichrome">Masson's Trichrome</option>
+                            <option value="PAS">PAS Stain</option>
+                            <option value="Alcian Blue">Alcian Blue</option>
+                            <option value="IHC (DAB)">IHC DAB Brown</option>
+                            <option value="Oil Red O">Oil Red O</option>
+                            <option value="TUNEL">TUNEL Apoptosis</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-slate-400 mb-1">Pathological Condition</label>
+                        <select id="aiCondition" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-slate-200">
+                            <option value="Normal Healthy Architecture">Normal Healthy Architecture</option>
+                            <option value="Severe Fibrosis & Collagen Deposition">Severe Fibrosis</option>
+                            <option value="Steatosis & Lipid Vacuolation">Steatosis & Fatty Infiltration</option>
+                            <option value="Ischemic Necrosis & Pyknosis">Ischemic Necrosis</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-slate-400 mb-1">Additional Prompt Keywords (Optional)</label>
+                    <textarea id="aiCustomPrompt" placeholder="e.g. High power 40x view, prominent central vein, clear lumen..." class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-slate-200 h-16 resize-none focus:outline-none focus:border-indigo-500"></textarea>
+                </div>
+            </div>
+
+            <!-- Loading indicator -->
+            <div id="aiLoading" class="hidden flex items-center justify-center gap-2 py-3 mb-3 bg-slate-900/60 rounded-lg text-indigo-400 text-xs font-medium border border-indigo-500/20">
+                <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Generating high-definition micrograph...
+            </div>
+
+            <div class="flex items-center gap-2">
+                <button id="btnGenerateAi" onclick="generateAiHistologyImage()" class="flex-1 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-semibold text-xs rounded-lg transition flex items-center justify-center gap-1.5 shadow-lg shadow-indigo-500/25">
+                    <i data-lucide="sparkles" class="w-4 h-4"></i> Generate & Apply Slide
+                </button>
+                <button onclick="closeAiModal()" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs rounded-lg font-medium">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Toast UI -->
+    <div id="toast" class="fixed bottom-5 right-5 z-50 transform translate-y-20 opacity-0 transition-all duration-300 pointer-events-none">
+        <div class="bg-indigo-600 text-white px-4 py-2.5 rounded-lg shadow-xl flex items-center space-x-2 border border-indigo-400">
+            <i data-lucide="check-circle-2" class="w-4 h-4 text-indigo-200"></i>
+            <span id="toastMsg" class="text-xs font-medium">Notification message</span>
+        </div>
+    </div>
+
+    <script>
+        let currentLayout = '2x2';
+        let activePanelId = 'A';
+        let figurePanels = [];
+        let quantChart = null;
+        let zoomLevel = 1.0;
+
+        // Safe DOM Setter Helpers to prevent TypeError on missing or delayed DOM elements
+        function safeSetText(id, text) {
+            const el = document.getElementById(id);
+            if (el) el.innerText = text;
+        }
+
+        function safeSetHTML(id, html) {
+            const el = document.getElementById(id);
+            if (el) el.innerHTML = html;
+        }
+
+        function safeSetValue(id, val) {
+            const el = document.getElementById(id);
+            if (el) el.value = val;
+        }
+
+        // Default Quantitative Dataset
+        let quantDataset = {
+            title: "Fibrotic Area (% Total Area)",
+            yLabel: "% Area Density",
+            groups: [
+                { name: "Control", value: 4.2, sem: 0.5 },
+                { name: "Vehicle (Model)", value: 28.6, sem: 2.1 },
+                { name: "Low Dose Drug", value: 16.4, sem: 1.4 },
+                { name: "High Dose Drug", value: 7.8, sem: 0.9 }
+            ]
+        };
+
+        function createSyntheticTissueCanvas(stain, organ, condition) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 800;
+            canvas.height = 600;
+            const ctx = canvas.getContext('2d');
+
+            stain = stain || 'H&E';
+            organ = organ || 'Liver';
+            condition = condition || 'Normal Healthy Control';
+
+            // Background bases per stain
+            let bgGrad = ctx.createLinearGradient(0, 0, 800, 600);
+            if (stain.includes('Trichrome')) {
+                bgGrad.addColorStop(0, '#f8fafc');
+                bgGrad.addColorStop(1, '#e2e8f0');
+            } else if (stain.includes('TUNEL')) {
+                bgGrad.addColorStop(0, '#090d16');
+                bgGrad.addColorStop(1, '#020617');
+            } else if (stain.includes('PAS')) {
+                bgGrad.addColorStop(0, '#fdf4ff');
+                bgGrad.addColorStop(1, '#fae8ff');
+            } else if (stain.includes('Alcian')) {
+                bgGrad.addColorStop(0, '#ecfeff');
+                bgGrad.addColorStop(1, '#cffafe');
+            } else if (stain.includes('Sirius')) {
+                bgGrad.addColorStop(0, '#fff1f2');
+                bgGrad.addColorStop(1, '#ffe4e6');
+            } else if (stain.includes('Oil Red')) {
+                bgGrad.addColorStop(0, '#f8fafc');
+                bgGrad.addColorStop(1, '#edf2f7');
+            } else { // Standard H&E
+                bgGrad.addColorStop(0, '#fff5f7');
+                bgGrad.addColorStop(1, '#fce7f3');
+            }
+            ctx.fillStyle = bgGrad;
+            ctx.fillRect(0, 0, 800, 600);
+
+            if (organ.includes('Liver')) {
+                // Central vein and hepatic lobules radiating pattern
+                const cx = 400, cy = 300;
+                // Central vein lumen
+                ctx.beginPath();
+                ctx.arc(cx, cy, 45, 0, Math.PI * 2);
+                ctx.fillStyle = stain.includes('TUNEL') ? '#020617' : '#ffffff';
+                ctx.fill();
+                ctx.strokeStyle = '#e2e8f0';
+                ctx.stroke();
+
+                // Hepatic cords radiating outwards
+                for (let a = 0; a < Math.PI * 2; a += Math.PI / 16) {
+                    ctx.beginPath();
+                    ctx.moveTo(cx + Math.cos(a) * 55, cy + Math.sin(a) * 55);
+                    ctx.lineTo(cx + Math.cos(a) * 380, cy + Math.sin(a) * 380);
+                    ctx.lineWidth = 14;
+                    ctx.strokeStyle = stain.includes('H&E') ? 'rgba(236, 72, 153, 0.35)' :
+                                      stain.includes('Trichrome') ? 'rgba(219, 234, 254, 0.6)' : 'rgba(244, 114, 182, 0.35)';
+                    ctx.stroke();
+                }
+            } else if (organ.includes('Kidney')) {
+                // Render Renal Glomerulus spherical capillary tuft
+                const gx = 400, gy = 300;
+                // Bowman's Space Capsule
+                ctx.beginPath();
+                ctx.arc(gx, gy, 120, 0, Math.PI * 2);
+                ctx.strokeStyle = stain.includes('PAS') ? '#c026d3' : '#475569';
+                ctx.lineWidth = 3;
+                ctx.stroke();
+
+                // Capillary Tuft
+                for (let i = 0; i < 15; i++) {
+                    ctx.beginPath();
+                    ctx.arc(gx + (Math.random() - 0.5) * 110, gy + (Math.random() - 0.5) * 110, 20 + Math.random() * 25, 0, Math.PI * 2);
+                    ctx.fillStyle = stain.includes('PAS') ? 'rgba(217, 70, 239, 0.4)' : 'rgba(244, 114, 182, 0.4)';
+                    ctx.fill();
+                }
+
+                // Surrounding Convoluted Tubules
+                for (let tx = 80; tx < 720; tx += 150) {
+                    for (let ty = 80; ty < 520; ty += 130) {
+                        if (Math.hypot(tx - gx, ty - gy) > 150) {
+                            ctx.beginPath();
+                            ctx.arc(tx, ty, 35, 0, Math.PI * 2);
+                            ctx.fillStyle = stain.includes('PAS') ? 'rgba(240, 171, 252, 0.45)' : 'rgba(251, 207, 232, 0.45)';
+                            ctx.fill();
+                            ctx.strokeStyle = stain.includes('PAS') ? '#a21caf' : '#94a3b8';
+                            ctx.lineWidth = 2.5;
+                            ctx.stroke();
+                        }
+                    }
+                }
+            } else if (organ.includes('Lung')) {
+                // Thin alveolar walls forming honeycomb structure
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = stain.includes('H&E') ? '#db2777' : '#64748b';
+                for (let x = 60; x < 760; x += 90) {
+                    for (let y = 60; y < 540; y += 80) {
+                        ctx.beginPath();
+                        ctx.arc(x + (Math.random() * 20), y + (Math.random() * 20), 38, 0, Math.PI * 2);
+                        ctx.stroke();
+                    }
+                }
+            } else if (organ.includes('Intestine')) {
+                // Intestinal villi projections & crypts
+                for (let vx = 80; vx < 750; vx += 110) {
+                    ctx.beginPath();
+                    ctx.ellipse(vx, 300, 35, 200, 0, 0, Math.PI * 2);
+                    ctx.fillStyle = stain.includes('Alcian') ? 'rgba(165, 243, 252, 0.6)' : 'rgba(251, 207, 232, 0.5)';
+                    ctx.fill();
+                    ctx.strokeStyle = stain.includes('Alcian') ? '#0891b2' : '#be185d';
+                    ctx.lineWidth = 3;
+                    ctx.stroke();
+
+                    // Goblet cells if Alcian Blue
+                    if (stain.includes('Alcian') || stain.includes('PAS')) {
+                        for (let g = 0; g < 6; g++) {
+                            ctx.beginPath();
+                            ctx.arc(vx + (Math.random() - 0.5) * 40, 200 + Math.random() * 200, 8, 0, Math.PI * 2);
+                            ctx.fillStyle = stain.includes('Alcian') ? '#06b6d4' : '#d946ef';
+                            ctx.fill();
+                        }
+                    }
+                }
+            } else if (organ.includes('Heart')) {
+                // Striated myocardium fibers
+                ctx.lineWidth = 16;
+                ctx.strokeStyle = stain.includes('H&E') ? 'rgba(225, 29, 72, 0.4)' : 'rgba(190, 18, 60, 0.5)';
+                for (let y = 50; y < 580; y += 45) {
+                    ctx.beginPath();
+                    ctx.moveTo(0, y);
+                    ctx.bezierCurveTo(200, y + 20, 500, y - 20, 800, y);
+                    ctx.stroke();
+                }
+            }
+
+            const nucleusCount = 350;
+            for (let i = 0; i < nucleusCount; i++) {
+                const nx = Math.random() * 800;
+                const ny = Math.random() * 600;
+                const nr = 2.5 + Math.random() * 3.5;
+
+                ctx.beginPath();
+                ctx.arc(nx, ny, nr, 0, Math.PI * 2);
+
+                if (stain.includes('H&E')) {
+                    ctx.fillStyle = '#4c1d95'; // Hematoxylin deep violet/blue
+                } else if (stain.includes('Trichrome')) {
+                    ctx.fillStyle = '#1e1b4b'; // Dark blue nuclei
+                } else if (stain.includes('IHC')) {
+                    // DAB positive brown vs blue counterstain
+                    ctx.fillStyle = Math.random() > 0.45 ? '#78350f' : '#2563eb';
+                } else if (stain.includes('TUNEL')) {
+                    // Bright green fluorescent apoptotic nuclei
+                    ctx.fillStyle = Math.random() > 0.65 ? '#22c55e' : '#1e293b';
+                } else if (stain.includes('Oil Red')) {
+                    ctx.fillStyle = '#1e3a8a';
+                } else if (stain.includes('Silver')) {
+                    ctx.fillStyle = '#0f172a';
+                } else if (stain.includes('Toluidine')) {
+                    ctx.fillStyle = '#312e81';
+                } else {
+                    ctx.fillStyle = '#3730a3';
+                }
+                ctx.fill();
+            }
+
+            if (stain.includes('Oil Red') || condition.includes('Steatosis')) {
+                // Bright lipid/fat droplets
+                for (let l = 0; l < 45; l++) {
+                    const lx = Math.random() * 800;
+                    const ly = Math.random() * 600;
+                    const lr = 12 + Math.random() * 18;
+                    ctx.beginPath();
+                    ctx.arc(lx, ly, lr, 0, Math.PI * 2);
+                    ctx.fillStyle = stain.includes('Oil Red') ? 'rgba(239, 68, 68, 0.85)' : 'rgba(255, 255, 255, 0.9)';
+                    ctx.fill();
+                    if (stain.includes('Oil Red')) {
+                        ctx.strokeStyle = '#b91c1c';
+                        ctx.lineWidth = 1.5;
+                        ctx.stroke();
+                    }
+                }
+            }
+
+            if (stain.includes('Trichrome') || stain.includes('Sirius') || condition.includes('Fibrosis')) {
+                // Dense collagen bands
+                ctx.lineWidth = 5;
+                ctx.strokeStyle = stain.includes('Trichrome') ? 'rgba(37, 99, 235, 0.75)' :
+                                  stain.includes('Sirius') ? 'rgba(225, 29, 72, 0.85)' : 'rgba(59, 130, 246, 0.5)';
+                for (let k = 0; k < 15; k++) {
+                    ctx.beginPath();
+                    let sx = Math.random() * 800;
+                    let sy = Math.random() * 600;
+                    ctx.moveTo(sx, sy);
+                    ctx.bezierCurveTo(sx + 100, sy + 50, sx - 50, sy + 150, sx + 180, sy + 200);
+                    ctx.stroke();
+                }
+            }
+
+            if (stain.includes('Silver')) {
+                // Fine black reticular fibers
+                ctx.lineWidth = 1.2;
+                ctx.strokeStyle = '#020617';
+                for (let s = 0; s < 30; s++) {
+                    ctx.beginPath();
+                    let sx = Math.random() * 800;
+                    let sy = Math.random() * 600;
+                    ctx.moveTo(sx, sy);
+                    ctx.lineTo(sx + (Math.random() - 0.5) * 120, sy + (Math.random() - 0.5) * 120);
+                    ctx.stroke();
+                }
+            }
+
+            // Lens vignetting
+            const vignette = ctx.createRadialGradient(400, 300, 250, 400, 300, 500);
+            vignette.addColorStop(0, 'rgba(0,0,0,0)');
+            vignette.addColorStop(1, 'rgba(0,0,0,0.2)');
+            ctx.fillStyle = vignette;
+            ctx.fillRect(0, 0, 800, 600);
+
+            return canvas.toDataURL();
+        }
+
+        const SCENARIOS = {
+            liver_fibrosis: {
+                layout: '2x2',
+                panels: [
+                    { id: 'A', title: 'Healthy Control Liver', sub: 'C57BL/6 Mouse - Parenchyma', tissue: 'Liver', stain: 'H&E', condition: 'Normal Healthy Control', mag: '20x', microns: 100, pos: 'bottom-right', color: '#ffffff', contrast: 100, saturate: 100, hue: 0, annotations: [], img: createSyntheticTissueCanvas('H&E', 'Liver', 'Normal Healthy Control') },
+                    { id: 'B', title: 'NASH & Steatosis', sub: 'High-Fat Diet Model', tissue: 'Liver', stain: 'Oil Red O', condition: 'Steatosis & Lipid Vacuolation', mag: '20x', microns: 100, pos: 'bottom-right', color: '#ffffff', contrast: 110, saturate: 110, hue: 0, annotations: [{type: 'labeled-arrow', text: 'Lipid Droplet', x: 50, y: 50}], img: createSyntheticTissueCanvas('Oil Red O', 'Liver', 'Steatosis & Lipid Vacuolation') },
+                    { id: 'C', title: 'Bridging Fibrosis Model', sub: 'CCl4 Induced Injury', tissue: 'Liver', stain: 'Masson\'s Trichrome', condition: 'Severe Fibrosis & Collagen Deposition', mag: '20x', microns: 100, pos: 'bottom-right', color: '#ffffff', contrast: 115, saturate: 120, hue: 0, annotations: [{type: 'labeled-arrow', text: 'Collagen Septa', x: 60, y: 40}], img: createSyntheticTissueCanvas('Masson\'s Trichrome', 'Liver', 'Severe Fibrosis & Collagen Deposition') },
+                    { id: 'D', title: 'Therapeutic Recovery', sub: 'Anti-Fibrotic Compound', tissue: 'Liver', stain: 'Sirius Red', condition: 'Mild Inflammatory Infiltrate', mag: '20x', microns: 100, pos: 'bottom-right', color: '#ffffff', contrast: 105, saturate: 100, hue: 0, annotations: [], img: createSyntheticTissueCanvas('Sirius Red', 'Liver', 'Mild Inflammatory Infiltrate') }
+                ],
+                legend: 'Figure 1. Histological characterization of hepatic steatosis and fibrotic progression. (A) Healthy control liver morphology. (B) Oil Red O lipid droplet accumulation. (C) Masson’s Trichrome demonstrating collagen bridging septa. (D) Sirius Red visualization of attenuated fibrosis after treatment. Scale bar = 100 µm.'
+            },
+            kidney_ischemia: {
+                layout: '2x2',
+                panels: [
+                    { id: 'A', title: 'Normal Renal Cortex', sub: 'SD Rat Glomerulus', tissue: 'Kidney', stain: 'PAS', condition: 'Normal Healthy Control', mag: '40x', microns: 50, pos: 'bottom-right', color: '#ffffff', contrast: 100, saturate: 100, hue: 0, annotations: [{type: 'labeled-arrow', text: 'Glomerulus', x: 50, y: 50}], img: createSyntheticTissueCanvas('PAS', 'Kidney', 'Normal Healthy Control') },
+                    { id: 'B', title: 'Ischemic Injury (IRI)', sub: 'SD Rat Cortex', tissue: 'Kidney', stain: 'PAS', condition: 'Ischemic Necrosis & Pyknosis', mag: '40x', microns: 50, pos: 'bottom-right', color: '#ffffff', contrast: 120, saturate: 110, hue: 0, annotations: [{type: 'labeled-arrow', text: 'Brush Border Loss', x: 45, y: 35}], img: createSyntheticTissueCanvas('PAS', 'Kidney', 'Ischemic Necrosis & Pyknosis') },
+                    { id: 'C', title: 'Kim-1 Expression', sub: 'Tubular Damage Marker', tissue: 'Kidney', stain: 'IHC (DAB)', condition: 'Severe Fibrosis & Collagen Deposition', mag: '40x', microns: 50, pos: 'bottom-right', color: '#ffffff', contrast: 110, saturate: 130, hue: 0, annotations: [], img: createSyntheticTissueCanvas('IHC (DAB)', 'Kidney', 'Severe Fibrosis & Collagen Deposition') },
+                    { id: 'D', title: 'Reticular Matrix', sub: 'Basement Membrane', tissue: 'Kidney', stain: 'Silver Stain', condition: 'Mild Inflammatory Infiltrate', mag: '40x', microns: 50, pos: 'bottom-right', color: '#ffffff', contrast: 100, saturate: 100, hue: 0, annotations: [], img: createSyntheticTissueCanvas('Silver Stain', 'Kidney', 'Mild Inflammatory Infiltrate') }
+                ],
+                legend: 'Figure 2. Renal histological evaluation and acute tubular injury markers. (A) PAS staining highlighting intact glomerular basement membrane and brush borders. (B) Tubular cast formation. (C) Kim-1 IHC DAB positivity. (D) Reticular silver stain. Scale bar = 50 µm.'
+            },
+            colon_pathology: {
+                layout: '2x2',
+                panels: [
+                    { id: 'A', title: 'Normal Colon Mucosa', sub: 'Intestinal Crypts', tissue: 'Intestine', stain: 'H&E', condition: 'Normal Healthy Control', mag: '20x', microns: 100, pos: 'bottom-right', color: '#ffffff', contrast: 100, saturate: 100, hue: 0, annotations: [{type: 'labeled-arrow', text: 'Crypts', x: 50, y: 50}], img: createSyntheticTissueCanvas('H&E', 'Intestine', 'Normal Healthy Control') },
+                    { id: 'B', title: 'Mucin Depletion (DSS)', sub: 'Colitis Model', tissue: 'Intestine', stain: 'Alcian Blue', condition: 'Mild Inflammatory Infiltrate', mag: '20x', microns: 100, pos: 'bottom-right', color: '#ffffff', contrast: 100, saturate: 100, hue: 0, annotations: [{type: 'labeled-arrow', text: 'Goblet Cell', x: 40, y: 40}], img: createSyntheticTissueCanvas('Alcian Blue', 'Intestine', 'Mild Inflammatory Infiltrate') },
+                    { id: 'C', title: 'Ulcerated Epithelium', sub: 'Severe Colitis', tissue: 'Intestine', stain: 'H&E', condition: 'Ischemic Necrosis & Pyknosis', mag: '20x', microns: 100, pos: 'bottom-right', color: '#ffffff', contrast: 110, saturate: 100, hue: 0, annotations: [], img: createSyntheticTissueCanvas('H&E', 'Intestine', 'Ischemic Necrosis & Pyknosis') },
+                    { id: 'D', title: 'Treated Epithelial Repair', sub: 'Therapeutic Group', tissue: 'Intestine', stain: 'Alcian Blue', condition: 'Normal Healthy Control', mag: '20x', microns: 100, pos: 'bottom-right', color: '#ffffff', contrast: 100, saturate: 110, hue: 0, annotations: [], img: createSyntheticTissueCanvas('Alcian Blue', 'Intestine', 'Normal Healthy Control') }
+                ],
+                legend: 'Figure 3. Evaluation of colonic mucosal barrier and goblet cell mucin secretion. (A, C) H&E stained intestinal mucosa. (B, D) Alcian Blue staining of acid mucins within goblet cells. Scale bar = 100 µm.'
+            },
+            tumor_apoptosis: {
+                layout: 'with-quant',
+                panels: [
+                    { id: 'A', title: 'Control Xenograft', sub: 'Human MDA-MB-231', tissue: 'Brain', stain: 'H&E', condition: 'Normal Healthy Control', mag: '20x', microns: 100, pos: 'bottom-right', color: '#ffffff', contrast: 100, saturate: 100, hue: 0, annotations: [], img: createSyntheticTissueCanvas('H&E', 'Brain', 'Normal Healthy Control') },
+                    { id: 'B', title: 'Chemotherapy Treated', sub: 'Apoptotic Bodies', tissue: 'Brain', stain: 'H&E', condition: 'Ischemic Necrosis & Pyknosis', mag: '20x', microns: 100, pos: 'bottom-right', color: '#ffffff', contrast: 100, saturate: 100, hue: 0, annotations: [{type: 'asterisk', x: 50, y: 50}], img: createSyntheticTissueCanvas('H&E', 'Brain', 'Ischemic Necrosis & Pyknosis') },
+                    { id: 'C', title: 'Ki67 Proliferation', sub: 'IHC DAB Index', tissue: 'Brain', stain: 'IHC (DAB)', condition: 'High Proliferative Marker Expression', mag: '40x', microns: 50, pos: 'bottom-right', color: '#ffffff', contrast: 110, saturate: 140, hue: 0, annotations: [], img: createSyntheticTissueCanvas('IHC (DAB)', 'Brain', 'High Proliferative Marker Expression') },
+                    { id: 'D', title: 'TUNEL Apoptosis', sub: 'Fluorescence Assay', tissue: 'Brain', stain: 'TUNEL', condition: 'Ischemic Necrosis & Pyknosis', mag: '40x', microns: 50, pos: 'bottom-right', color: '#ffffff', contrast: 100, saturate: 90, hue: 0, annotations: [], img: createSyntheticTissueCanvas('TUNEL', 'Brain', 'Ischemic Necrosis & Pyknosis') }
+                ],
+                legend: 'Figure 4. Tumor cell apoptosis and nuclear Ki67 proliferation scoring. Panel E details quantitative expression analysis (mean ± SEM, **p < 0.01).'
+            }
+        };
+
+        window.onload = function() {
+            if (window.lucide && typeof lucide.createIcons === 'function') {
+                lucide.createIcons();
+            }
+            loadScenario('liver_fibrosis');
+            populatePresetLibrary();
+            renderQuantDataInputs();
+        };
+
+        function switchTab(tab) {
+            ['presets', 'samples', 'quant'].forEach(t => {
+                const p = document.getElementById(`panel-${t}`);
+                const b = document.getElementById(`tab-${t}`);
+                if (!p || !b) return;
+                if (t === tab) {
+                    p.classList.remove('hidden');
+                    b.classList.add('text-indigo-400', 'border-indigo-500');
+                    b.classList.remove('text-slate-400', 'border-transparent');
+                } else {
+                    p.classList.add('hidden');
+                    b.classList.remove('text-indigo-400', 'border-indigo-500');
+                    b.classList.add('text-slate-400', 'border-transparent');
+                }
+            });
+        }
+
+        function loadScenario(key) {
+            const sc = SCENARIOS[key];
+            if (!sc) return;
+            currentLayout = sc.layout;
+            figurePanels = JSON.parse(JSON.stringify(sc.panels));
+            safeSetHTML('figureLegendText', sc.legend);
+            activePanelId = 'A';
+            safeSetText('activeLayoutName', getLayoutTitle(sc.layout));
+            renderCanvas();
+            updateInspector();
+            showToast(`Loaded ${key.replace('_', ' ').toUpperCase()} scenario`);
+        }
+
+        function getLayoutTitle(layout) {
+            switch(layout) {
+                case '2x2': return '2 × 2 Grid';
+                case '3x2': return '3 × 2 Matrix';
+                case 'inset': return 'Low/High Mag Inset';
+                case 'with-quant': return 'Tissue + Quant Graph Panel';
+                default: return layout;
+            }
+        }
+
+        function setLayout(layoutType) {
+            currentLayout = layoutType;
+            safeSetText('activeLayoutName', getLayoutTitle(layoutType));
+
+            let requiredCount = 4;
+            if (layoutType === '3x2') requiredCount = 6;
+            if (layoutType === 'inset') requiredCount = 2;
+
+            const letters = ['A', 'B', 'C', 'D', 'E', 'F'];
+            let newPanels = [];
+            for (let i = 0; i < requiredCount; i++) {
+                let existing = figurePanels[i];
+                if (!existing) {
+                    existing = {
+                        id: letters[i],
+                        title: `Group ${letters[i]}`,
+                        sub: 'Tissue Model',
+                        tissue: 'Liver',
+                        stain: 'H&E',
+                        condition: 'Normal Healthy Control',
+                        mag: '20x',
+                        microns: 50,
+                        pos: 'bottom-right',
+                        color: '#ffffff',
+                        contrast: 100,
+                        saturate: 100,
+                        hue: 0,
+                        annotations: [],
+                        img: createSyntheticTissueCanvas('H&E', 'Liver', 'Normal Healthy Control')
+                    };
+                }
+                existing.id = letters[i];
+                newPanels.push(existing);
+            }
+            figurePanels = newPanels;
+            activePanelId = 'A';
+            renderCanvas();
+            updateInspector();
+        }
+
+        function renderCanvas() {
+            const gridWrapper = document.getElementById('gridWrapper');
+            if (!gridWrapper) return;
+            gridWrapper.innerHTML = '';
+
+            const toggleScale = document.getElementById('toggleScaleBars');
+            const toggleLetters = document.getElementById('togglePanelLetters');
+            const toggleLabels = document.getElementById('toggleTreatmentLabels');
+
+            const showScale = toggleScale ? toggleScale.checked : true;
+            const showLetters = toggleLetters ? toggleLetters.checked : true;
+            const showTitles = toggleLabels ? toggleLabels.checked : true;
+
+            if (currentLayout === '2x2' || currentLayout === 'with-quant') {
+                gridWrapper.className = 'grid grid-cols-2 gap-4.5';
+            } else if (currentLayout === '3x2') {
+                gridWrapper.className = 'grid grid-cols-3 gap-3.5';
+            } else if (currentLayout === 'inset') {
+                gridWrapper.className = 'grid grid-cols-2 gap-4.5';
+            }
+
+            figurePanels.forEach(panel => {
+                const isActive = panel.id === activePanelId;
+                const panelDiv = document.createElement('div');
+                panelDiv.className = `relative rounded overflow-hidden border-2 transition-all group cursor-pointer bg-slate-100 ${
+                    isActive ? 'border-indigo-600 ring-2 ring-indigo-500/30 shadow-lg' : 'border-slate-300 hover:border-slate-400'
+                }`;
+                panelDiv.onclick = () => selectPanel(panel.id);
+
+                const filterStyle = `filter: contrast(${panel.contrast}%) saturate(${panel.saturate}%) hue-rotate(${panel.hue}deg);`;
+                
+                let annotationsHTML = '';
+                panel.annotations.forEach(ann => {
+                    if (ann.type === 'labeled-arrow' || ann.type === 'arrow') {
+                        annotationsHTML += `
+                            <div class="absolute flex items-center gap-1 z-10" style="top: ${ann.y}%; left: ${ann.x}%; transform: translate(-20%, -50%);">
+                                <i data-lucide="arrow-down-right" class="w-6 h-6 text-yellow-300 drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] stroke-[3]"></i>
+                                ${ann.text ? `<span class="bg-black/80 backdrop-blur-sm text-yellow-300 text-[10px] font-bold px-1.5 py-0.5 rounded shadow border border-yellow-400/30">${ann.text}</span>` : ''}
+                            </div>`;
+                    } else if (ann.type === 'asterisk') {
+                        annotationsHTML += `
+                            <div class="absolute z-10 text-red-500 text-xl font-bold drop-shadow-[0_1px_3px_rgba(255,255,255,0.9)]" style="top: ${ann.y}%; left: ${ann.x}%;">
+                                ★
+                            </div>`;
+                    }
+                });
+
+                let posClasses = "bottom-3 right-3";
+                if (panel.pos === 'bottom-left') posClasses = "bottom-3 left-3";
+                if (panel.pos === 'top-right') posClasses = "top-3 right-3";
+
+                panelDiv.innerHTML = `
+                    <div class="relative w-full aspect-[4/3] overflow-hidden bg-slate-200">
+                        <img src="${panel.img}" class="w-full h-full object-cover transition-transform" style="${filterStyle}" alt="Micrograph Panel ${panel.id}">
+                        
+                        ${annotationsHTML}
+
+                        ${showLetters ? `
+                            <div class="absolute top-2 left-2 bg-black/75 backdrop-blur-sm text-white font-bold text-sm px-2 py-0.5 rounded shadow z-10">
+                                ${panel.id}
+                            </div>
+                        ` : ''}
+
+                        ${showTitles ? `
+                            <div class="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/85 via-black/45 to-transparent p-2 pt-5 text-left text-white z-10">
+                                <div class="text-xs font-bold leading-tight drop-shadow-sm">${panel.title}</div>
+                                <div class="text-[10px] text-slate-300 opacity-90">${panel.tissue || 'Tissue'} • ${panel.sub || ''} (${panel.stain})</div>
+                            </div>
+                        ` : ''}
+
+                        ${showScale ? `
+                            <div class="absolute ${posClasses} flex flex-col items-center pointer-events-none drop-shadow-md z-10">
+                                <span class="text-[9px] font-bold font-mono tracking-wider mb-0.5" style="color: ${panel.color}; text-shadow: 0 1px 2px rgba(0,0,0,0.9);">${panel.microns} µm</span>
+                                <div class="h-1 rounded-sm shadow-sm" style="width: ${panel.microns * 0.9}px; background-color: ${panel.color}; border: 1px solid rgba(0,0,0,0.4);"></div>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+                gridWrapper.appendChild(panelDiv);
+            });
+
+            if (currentLayout === 'with-quant') {
+                const graphDiv = document.createElement('div');
+                graphDiv.className = "relative rounded overflow-hidden border-2 border-slate-300 bg-white p-3 flex flex-col justify-between shadow-sm min-h-[220px]";
+                graphDiv.innerHTML = `
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="bg-black/80 text-white font-bold text-sm px-2 py-0.5 rounded">E</span>
+                        <span class="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Quantification</span>
+                    </div>
+                    <div class="relative flex-1 w-full h-44">
+                        <canvas id="canvasQuantGraph"></canvas>
+                    </div>
+                `;
+                gridWrapper.appendChild(graphDiv);
+                setTimeout(renderQuantGraphChart, 50);
+            }
+
+            if (window.lucide && typeof lucide.createIcons === 'function') {
+                lucide.createIcons();
+            }
+        }
+
+        function selectPanel(id) {
+            activePanelId = id;
+            safeSetText('activePanelLabel', `Panel ${id}`);
+            renderCanvas();
+            updateInspector();
+        }
+
+        function updateInspector() {
+            const panel = figurePanels.find(p => p.id === activePanelId);
+            if (!panel) return;
+
+            safeSetValue('panelTitleInput', panel.title || '');
+            safeSetValue('panelTissueSelect', panel.tissue || 'Liver');
+            safeSetValue('panelSublabelInput', panel.sub || '');
+            safeSetValue('panelStainSelect', panel.stain || 'H&E');
+            safeSetValue('panelConditionSelect', panel.condition || 'Normal Healthy Control');
+            safeSetValue('panelMagSelect', panel.mag || '20x');
+            safeSetValue('scaleBarMicrons', panel.microns || 50);
+            safeSetValue('scaleBarPos', panel.pos || 'bottom-right');
+            safeSetValue('scaleBarColor', panel.color || '#ffffff');
+
+            safeSetValue('contrastRange', panel.contrast ?? 100);
+            safeSetText('contrastVal', `${panel.contrast ?? 100}%`);
+
+            safeSetValue('saturateRange', panel.saturate ?? 100);
+            safeSetText('saturateVal', `${panel.saturate ?? 100}%`);
+
+            safeSetValue('hueRange', panel.hue ?? 0);
+            safeSetText('hueVal', `${panel.hue ?? 0}°`);
+        }
+
+        function onTissueOrStainChange() {
+            updateActivePanelData();
+            rebuildTissueSlideForActivePanel();
+        }
+
+        function rebuildTissueSlideForActivePanel() {
+            const panel = figurePanels.find(p => p.id === activePanelId);
+            if (!panel) return;
+
+            panel.img = createSyntheticTissueCanvas(panel.stain, panel.tissue, panel.condition);
+            renderCanvas();
+            showToast(`Rendered ${panel.tissue} (${panel.stain}) for Panel ${panel.id}`);
+        }
+
+        function updateActivePanelData() {
+            const panel = figurePanels.find(p => p.id === activePanelId);
+            if (!panel) return;
+
+            const titleIn = document.getElementById('panelTitleInput');
+            const tissueIn = document.getElementById('panelTissueSelect');
+            const subIn = document.getElementById('panelSublabelInput');
+            const stainIn = document.getElementById('panelStainSelect');
+            const condIn = document.getElementById('panelConditionSelect');
+            const magIn = document.getElementById('panelMagSelect');
+            const micronsIn = document.getElementById('scaleBarMicrons');
+            const posIn = document.getElementById('scaleBarPos');
+            const colorIn = document.getElementById('scaleBarColor');
+
+            if (titleIn) panel.title = titleIn.value;
+            if (tissueIn) panel.tissue = tissueIn.value;
+            if (subIn) panel.sub = subIn.value;
+            if (stainIn) panel.stain = stainIn.value;
+            if (condIn) panel.condition = condIn.value;
+            if (magIn) panel.mag = magIn.value;
+            if (micronsIn) panel.microns = parseFloat(micronsIn.value) || 50;
+            if (posIn) panel.pos = posIn.value;
+            if (colorIn) panel.color = colorIn.value;
+
+            const contrastIn = document.getElementById('contrastRange');
+            if (contrastIn) {
+                panel.contrast = parseInt(contrastIn.value);
+                safeSetText('contrastVal', `${panel.contrast}%`);
+            }
+
+            const saturateIn = document.getElementById('saturateRange');
+            if (saturateIn) {
+                panel.saturate = parseInt(saturateIn.value);
+                safeSetText('saturateVal', `${panel.saturate}%`);
+            }
+
+            const hueIn = document.getElementById('hueRange');
+            if (hueIn) {
+                panel.hue = parseInt(hueIn.value);
+                safeSetText('hueVal', `${panel.hue}°`);
+            }
+
+            renderCanvas();
+        }
+
+        function addAnnotationToActive(type) {
+            const panel = figurePanels.find(p => p.id === activePanelId);
+            if (!panel) return;
+            
+            const labelText = document.getElementById('annotationTextInput').value || '';
+
+            panel.annotations.push({
+                type: type,
+                text: labelText,
+                x: 35 + Math.random() * 30,
+                y: 35 + Math.random() * 30
+            });
+            renderCanvas();
+            showToast(`Added diagnostic callout to Panel ${panel.id}`);
+        }
+
+        function populatePresetLibrary() {
+            const grid = document.getElementById('presetTissueGrid');
+            grid.innerHTML = '';
+
+            const samples = [
+                { title: 'Normal Liver H&E', stain: 'H&E', organ: 'Liver', cond: 'Normal Healthy Control' },
+                { title: 'Liver Steatosis Oil Red', stain: 'Oil Red O', organ: 'Liver', cond: 'Steatosis & Lipid Vacuolation' },
+                { title: 'Renal Tubule PAS', stain: 'PAS', organ: 'Kidney', cond: 'Normal Healthy Control' },
+                { title: 'Intestinal Alcian Blue', stain: 'Alcian Blue', organ: 'Intestine', cond: 'Normal Healthy Control' },
+                { title: 'Myocardium Trichrome', stain: 'Masson\'s Trichrome', organ: 'Heart', cond: 'Severe Fibrosis & Collagen Deposition' },
+                { title: 'Apoptotic Brain TUNEL', stain: 'TUNEL', organ: 'Brain', cond: 'Ischemic Necrosis & Pyknosis' }
+            ];
+
+            samples.forEach(s => {
+                const imgData = createSyntheticTissueCanvas(s.stain, s.organ, s.cond);
+                const btn = document.createElement('div');
+                btn.className = "bg-slate-900 border border-slate-700 hover:border-indigo-500 rounded p-1.5 cursor-pointer text-left transition group";
+                btn.onclick = () => {
+                    const activeP = figurePanels.find(p => p.id === activePanelId);
+                    if (activeP) {
+                        activeP.img = imgData;
+                        activeP.stain = s.stain;
+                        activeP.tissue = s.organ;
+                        activeP.condition = s.cond;
+                        renderCanvas();
+                        updateInspector();
+                        showToast(`Applied ${s.title} to Panel ${activeP.id}`);
+                    }
+                };
+                btn.innerHTML = `
+                    <img src="${imgData}" class="w-full h-20 object-cover rounded mb-1">
+                    <div class="text-[11px] font-semibold text-slate-200 group-hover:text-indigo-400">${s.title}</div>
+                    <div class="text-[9px] text-slate-400">${s.stain}</div>
+                `;
+                grid.appendChild(btn);
+            });
+        }
+
+        function renderQuantDataInputs() {
+            const container = document.getElementById('quantDataRows');
+            container.innerHTML = '';
+            quantDataset.groups.forEach((g, idx) => {
+                const row = document.createElement('div');
+                row.className = "flex items-center gap-2";
+                row.innerHTML = `
+                    <input type="text" value="${g.name}" oninput="updateQuantGroup(${idx}, 'name', this.value)" class="flex-1 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-slate-200 text-xs">
+                    <input type="number" value="${g.value}" step="0.1" oninput="updateQuantGroup(${idx}, 'value', this.value)" class="w-16 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-slate-200 text-xs" title="Mean">
+                    <button onclick="removeQuantGroup(${idx})" class="text-slate-500 hover:text-red-400 p-1"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+                `;
+                container.appendChild(row);
+            });
+            lucide.createIcons();
+        }
+
+        function updateQuantGroup(idx, key, val) {
+            if (key === 'value') quantDataset.groups[idx].value = parseFloat(val) || 0;
+            if (key === 'name') quantDataset.groups[idx].name = val;
+            if (currentLayout === 'with-quant') renderQuantGraphChart();
+        }
+
+        function addQuantGroup() {
+            quantDataset.groups.push({ name: `Group ${quantDataset.groups.length + 1}`, value: 10.0, sem: 1.0 });
+            renderQuantDataInputs();
+            if (currentLayout === 'with-quant') renderQuantGraphChart();
+        }
+
+        function removeQuantGroup(idx) {
+            if (quantDataset.groups.length <= 2) return;
+            quantDataset.groups.splice(idx, 1);
+            renderQuantDataInputs();
+            if (currentLayout === 'with-quant') renderQuantGraphChart();
+        }
+
+        function updateQuantGraph() {
+            quantDataset.title = document.getElementById('quantTitleInput').value;
+            quantDataset.yLabel = document.getElementById('quantYAxisInput').value;
+            if (currentLayout === 'with-quant') renderQuantGraphChart();
+        }
+
+        function renderQuantGraphChart() {
+            const chartCanvas = document.getElementById('canvasQuantGraph');
+            if (!chartCanvas) return;
+
+            if (quantChart) quantChart.destroy();
+
+            const ctx = chartCanvas.getContext('2d');
+            quantChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: quantDataset.groups.map(g => g.name),
+                    datasets: [{
+                        label: quantDataset.title,
+                        data: quantDataset.groups.map(g => g.value),
+                        backgroundColor: ['rgba(99, 102, 241, 0.85)', 'rgba(239, 68, 68, 0.85)', 'rgba(245, 158, 11, 0.85)', 'rgba(16, 185, 129, 0.85)'],
+                        borderColor: ['#4f46e5', '#dc2626', '#d97706', '#059669'],
+                        borderWidth: 1.5,
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        title: {
+                            display: true,
+                            text: quantDataset.title,
+                            font: { size: 11, weight: 'bold', family: 'Inter' },
+                            color: '#1e293b'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: { display: true, text: quantDataset.yLabel, font: { size: 10 } },
+                            ticks: { font: { size: 9 } }
+                        },
+                        x: {
+                            ticks: { font: { size: 9 } }
+                        }
+                    }
+                }
+            });
+        }
+
+        function openAiGeneratorModal() {
+            document.getElementById('aiModal').classList.remove('hidden');
+        }
+
+        function closeAiModal() {
+            document.getElementById('aiModal').classList.add('hidden');
+        }
+
+        async function generateAiHistologyImage() {
+            const species = document.getElementById('aiModelSpecies').value;
+            const organ = document.getElementById('aiOrganType').value;
+            const stain = document.getElementById('aiStainType').value;
+            const condition = document.getElementById('aiCondition').value;
+            const custom = document.getElementById('aiCustomPrompt').value;
+
+            const promptText = `High resolution microscopy histology slide, ${species}, ${organ}, ${stain} stain, showing ${condition}. ${custom}. Brightfield microscopy 300DPI research journal quality.`;
+
+            document.getElementById('aiLoading').classList.remove('hidden');
+            document.getElementById('btnGenerateAi').disabled = true;
+
+            const apiKey = "";
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image:generateContent?key=${apiKey}`;
+
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{
+                            role: 'user',
+                            parts: [{ text: promptText }]
+                        }],
+                        generationConfig: {
+                            responseModalities: ['IMAGE'],
+                            imageConfig: { aspectRatio: "4:3" }
+                        }
+                    })
+                });
+
+                const result = await response.json();
+                const base64Data = result?.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
+
+                if (base64Data) {
+                    const imageUrl = `data:image/png;base64,${base64Data}`;
+                    applyGeneratedImageToActivePanel(imageUrl, stain, species, organ);
+                } else {
+                    const fallbackImg = createSyntheticTissueCanvas(stain, organ, condition);
+                    applyGeneratedImageToActivePanel(fallbackImg, stain, species, organ);
+                }
+            } catch (err) {
+                const fallbackImg = createSyntheticTissueCanvas(stain, organ, condition);
+                applyGeneratedImageToActivePanel(fallbackImg, stain, species, organ);
+            } finally {
+                document.getElementById('aiLoading').classList.add('hidden');
+                document.getElementById('btnGenerateAi').disabled = false;
+                closeAiModal();
+            }
+        }
+
+        function applyGeneratedImageToActivePanel(imgUrl, stain, species, organ) {
+            const panel = figurePanels.find(p => p.id === activePanelId);
+            if (panel) {
+                panel.img = imgUrl;
+                panel.stain = stain;
+                panel.tissue = organ;
+                panel.sub = `${species} - ${organ}`;
+                renderCanvas();
+                updateInspector();
+                showToast(`Generated & applied slide to Panel ${panel.id}`);
+            }
+        }
+
+        function handleImageUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const activeP = figurePanels.find(p => p.id === activePanelId);
+                if (activeP) {
+                    activeP.img = e.target.result;
+                    renderCanvas();
+                    showToast(`Uploaded custom slide to Panel ${activeP.id}`);
+                }
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function zoomCanvas(delta) {
+            zoomLevel = Math.max(0.6, Math.min(1.8, zoomLevel + delta));
+            document.getElementById('figureContainer').style.transform = `scale(${zoomLevel})`;
+        }
+
+        function resetZoom() {
+            zoomLevel = 1.0;
+            document.getElementById('figureContainer').style.transform = `scale(1.0)`;
+        }
+
+        function copyFigureLegend() {
+            const legendText = document.getElementById('figureLegendText').innerText;
+            const tempElem = document.createElement('textarea');
+            tempElem.value = legendText;
+            document.body.appendChild(tempElem);
+            tempElem.select();
+            document.execCommand('copy');
+            document.body.removeChild(tempElem);
+            showToast("Figure legend copied to clipboard!");
+        }
+
+        function exportPublicationFigure() {
+            document.getElementById('exportModal').classList.remove('hidden');
+        }
+
+        function closeExportModal() {
+            document.getElementById('exportModal').classList.add('hidden');
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            const toastMsg = document.getElementById('toastMsg');
+            if (toastMsg) {
+                toastMsg.innerText = msg;
+            }
+            if (toast) {
+                toast.classList.remove('translate-y-20', 'opacity-0');
+                setTimeout(() => {
+                    if (toast) toast.classList.add('translate-y-20', 'opacity-0');
+                }, 3000);
+            }
+        }
+    </script>
+</body>
+</html>
